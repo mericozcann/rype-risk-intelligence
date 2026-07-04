@@ -453,7 +453,7 @@ The project does not claim novelty from the first use of these methods individua
 
 2. Zhu, X., Zhu, J., Regan, D., & Wen, Z. (2026). *Exploring cascading failures in supply chain risk management: A systematic review, 2013–2024*. **Journal of Safety Science and Resilience, 7**(2), 100234. https://doi.org/10.1016/j.jnlssr.2025.100234
 
-3. Ordibazar, A. H., Hussain, O. K., & Saberi, M. (2021). *A recommender system and risk mitigation strategy for supply chain management using the counterfactual explanation algorithm*. In **Service-Oriented Computing – ICSOC 2021 Workshops**.
+3. Ordibazar, A. H., Hussain, O., & Saberi, M. (2022). *A recommender system and risk mitigation strategy for supply chain management using the counterfactual explanation algorithm*. In **Service-Oriented Computing – ICSOC 2021 Workshops** (pp. 103–116). Springer.
 
 4. Lundberg, S. M., & Lee, S.-I. (2017). *A Unified Approach to Interpreting Model Predictions*. **Advances in Neural Information Processing Systems, 30**.
 
@@ -464,7 +464,7 @@ The DF1–DF4 operational structures were developed using variables and data str
 - **Amazon Delivery Dataset** — Kaggle; dataset metadata indicates an MIT license.
 - **Logistics and Supply Chain Dataset** — Kaggle; repository documentation should be consulted for current licensing conditions.
 - **Synthetic Dataset for E-Commerce Return Analysis** — Kaggle.
-- Banerjee, H. (2019). *Time Series Dataset for Risk Assessment in Supply Chain Networks*. **Mendeley Data**.
+- Banerjee, H., Saparia, G., Ganapathy, V., Garg, P., & Shenbagaraman, V. M. (2019). *Time Series Dataset for Risk Assessment in Supply Chain Networks*. **Mendeley Data, V2**. https://doi.org/10.17632/gystn6d3r4.2
 
 The Banerjee dataset is a simulation-based academic supply-chain risk time-series dataset generated using probabilistic risk-assessment and linear-programming models in a MATLAB Simulink environment.
 
