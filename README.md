@@ -1,892 +1,321 @@
+# RYPE — Explainable Operational Risk Intelligence
 
-import json
-from math import sin, cos, radians
-import numpy as np
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-import streamlit as st
-
-# ============================================================
-# RYPE MVP v0.5 — Feature Freeze Decision Intelligence Interface
-# ============================================================
-
-st.set_page_config(
-    page_title="RYPE | Explainable Operational Risk Intelligence",
-    page_icon="◈",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-DATA_PATH = "data"
-
-# ============================================================
-# DESIGN SYSTEM — DARK EXECUTIVE THEME
-# ============================================================
-
-st.markdown("""
-<style>
-:root{
-    --bg:#070a0f;
-    --panel:#0f1723;
-    --panel2:#121c2a;
-    --panel3:#172233;
-    --text:#f5f7fb;
-    --muted:#9aa8ba;
-    --muted2:#65758b;
-    --line:#233246;
-    --accent:#d85b3f;
-    --blue:#4ea1ff;
-    --green:#54d39a;
-    --amber:#f0b85a;
-    --red:#ff6f61;
-}
-.stApp{
-    background:
-        radial-gradient(circle at 12% 8%, rgba(78,161,255,0.13), transparent 26%),
-        radial-gradient(circle at 88% 12%, rgba(216,91,63,0.11), transparent 28%),
-        linear-gradient(135deg, #070a0f 0%, #0b111b 55%, #070a0f 100%);
-    color:var(--text);
-}
-.block-container{padding-top:1.35rem; padding-bottom:4rem; max-width:1560px;}
-[data-testid="stSidebar"]{background:#080c12; border-right:1px solid var(--line);}
-[data-testid="stSidebar"] *{color:#e8eef8;}
-[data-testid="stSidebar"] .stSelectbox label,
-[data-testid="stSidebar"] .stNumberInput label{font-weight:800; letter-spacing:.02em; color:#d8e1ee;}
-hr{border-color:var(--line)!important;}
-h1,h2,h3,h4,p,span,div{font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;}
-.rype-nav{
-    display:flex; align-items:center; justify-content:space-between;
-    background:rgba(7,10,15,.76); border:1px solid var(--line);
-    border-radius:18px; padding:14px 18px; margin-bottom:20px;
-    backdrop-filter: blur(14px);
-}
-.brand{display:flex; align-items:center; gap:12px;}
-.brand-mark{width:38px; height:38px; border-radius:12px; background:linear-gradient(135deg,var(--accent),#8f2f20); display:flex; align-items:center; justify-content:center; font-weight:900; color:white;}
-.brand-title{font-size:1.08rem; font-weight:900; letter-spacing:-.03em; color:white;}
-.brand-sub{font-size:.72rem; color:var(--muted); margin-top:2px;}
-.nav-pill{font-size:.7rem; color:#b7c3d4; border:1px solid var(--line); border-radius:999px; padding:6px 10px; background:rgba(255,255,255,.03);}
-.rype-eyebrow{display:block; color:#ff8a6e; font-size:.72rem; font-weight:900; letter-spacing:.20em; text-transform:uppercase; margin-bottom:.55rem;}
-.rype-title{font-size:3.35rem; font-weight:950; line-height:.95; letter-spacing:-.065em; color:#fff; margin-bottom:.7rem;}
-.rype-subtitle{color:#aab8ca; font-size:1.02rem; max-width:1040px; line-height:1.68; margin-bottom:1rem;}
-.hero-card{background:linear-gradient(145deg, rgba(15,23,35,.96), rgba(11,17,27,.96)); border:1px solid var(--line); border-radius:22px; padding:1.25rem 1.35rem; box-shadow:0 18px 50px rgba(0,0,0,.26);}
-.metric-card{background:linear-gradient(145deg,#101927,#0b111b); color:#f8fbff; border:1px solid var(--line); border-radius:18px; padding:1.15rem; min-height:142px; box-shadow:0 14px 38px rgba(0,0,0,.22);}
-.metric-label{font-size:.67rem; color:#8392a7; text-transform:uppercase; letter-spacing:.14em; font-weight:900;}
-.metric-value{font-size:2.05rem; font-weight:950; letter-spacing:-.055em; margin-top:.45rem; color:white;}
-.metric-note{font-size:.78rem; color:#93a3b8; margin-top:.55rem; line-height:1.45;}
-.kpi-grid{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:15px 0 18px 0;}
-.signal{background:linear-gradient(135deg,#111b2a,#0b111b); border:1px solid var(--line); border-left:5px solid var(--accent); color:#f6f8fb; border-radius:18px; padding:1.1rem 1.25rem; margin:1rem 0; box-shadow:0 14px 40px rgba(0,0,0,.2);}
-.signal-title{font-size:.7rem; color:#ff8a6e; letter-spacing:.18em; text-transform:uppercase; font-weight:950;}
-.signal-main{font-size:1.2rem; font-weight:900; margin-top:.4rem; color:white;}
-.signal-sub{color:#a8b6c8; font-size:.88rem; margin-top:.38rem; line-height:1.55;}
-.panel{background:rgba(15,23,35,.94); border:1px solid var(--line); border-radius:20px; padding:1.2rem; box-shadow:0 14px 38px rgba(0,0,0,.18);}
-.panel-light{background:#101927; border:1px solid var(--line); border-radius:18px; padding:1.05rem;}
-.method-note{background:rgba(15,23,35,.98); border-left:4px solid var(--blue); border-radius:12px; padding:1rem 1.15rem; color:#b7c4d6; font-size:.88rem; line-height:1.65;}
-.driver-row{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
-.driver-name{width:155px; color:#9eacc0; font-size:.82rem;}
-.driver-track{height:9px; flex:1; border-radius:999px; background:#1c2a3b; overflow:hidden;}
-.driver-fill{height:100%; border-radius:999px; background:linear-gradient(90deg,var(--blue),var(--accent));}
-.driver-val{width:58px; text-align:right; color:white; font-weight:800; font-size:.82rem;}
-.badge-high{color:#ff9a8c; background:rgba(255,111,97,.13); border:1px solid rgba(255,111,97,.28); padding:4px 9px; border-radius:999px; font-size:.72rem; font-weight:900;}
-.badge-mod{color:#ffd18a; background:rgba(240,184,90,.13); border:1px solid rgba(240,184,90,.28); padding:4px 9px; border-radius:999px; font-size:.72rem; font-weight:900;}
-.badge-low{color:#7ff0ba; background:rgba(84,211,154,.13); border:1px solid rgba(84,211,154,.28); padding:4px 9px; border-radius:999px; font-size:.72rem; font-weight:900;}
-.stTabs [data-baseweb="tab-list"]{gap:6px; border-bottom:1px solid var(--line);}
-.stTabs [data-baseweb="tab"]{background:#101927; border:1px solid var(--line); border-bottom:0; border-radius:12px 12px 0 0; padding:8px 14px; color:#d8e3f2;}
-.stTabs [aria-selected="true"]{background:#172338!important; color:#fff!important;}
-div[data-testid="stDataFrame"]{border:1px solid var(--line); border-radius:14px; overflow:hidden;}
-@media(max-width:1000px){.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.rype-title{font-size:2.4rem;}}
-
-/* STREAMLIT CHROME: lock the app to the intended dark research interface */
-[data-testid="stToolbar"]{display:none!important;}
-[data-testid="stHeader"]{background:transparent!important; height:0!important;}
-[data-testid="stDecoration"]{display:none!important;}
-#MainMenu{visibility:hidden!important;}
-footer{visibility:hidden!important;}
-[data-testid="stStatusWidget"]{visibility:hidden!important;}
-.block-container{padding-top:2.4rem!important; padding-bottom:4rem; max-width:1560px;}
-.rype-nav{margin-top:.35rem!important; overflow:visible!important; position:relative; z-index:5;}
-.brand-mark{
-    width:44px; height:44px; border-radius:14px;
-    background:linear-gradient(145deg,rgba(78,161,255,.16),rgba(84,211,154,.10));
-    border:1px solid rgba(117,196,255,.30);
-    box-shadow:inset 0 0 22px rgba(78,161,255,.08),0 10px 28px rgba(0,0,0,.22);
-    display:flex; align-items:center; justify-content:center;
-}
-.brand-mark svg{width:31px;height:31px;display:block;}
-.brand-title{line-height:1.2;}
-.brand-sub{line-height:1.35;}
-.section-kicker{font-size:.68rem;color:#7f90a8;letter-spacing:.15em;text-transform:uppercase;font-weight:900;margin-bottom:.25rem;}
-.insight-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:.75rem 0 1rem;}
-.insight-card{background:linear-gradient(145deg,#101927,#0b111b);border:1px solid var(--line);border-radius:16px;padding:1rem;}
-.insight-label{font-size:.65rem;color:#7f90a8;letter-spacing:.12em;text-transform:uppercase;font-weight:900;}
-.insight-value{font-size:1.15rem;color:#fff;font-weight:900;margin-top:.38rem;}
-.insight-note{font-size:.76rem;color:#95a5ba;line-height:1.45;margin-top:.35rem;}
-.decision-brief{background:linear-gradient(135deg,rgba(78,161,255,.08),rgba(216,91,63,.06));border:1px solid var(--line);border-radius:18px;padding:1.05rem 1.15rem;margin:.8rem 0 1rem;}
-.decision-brief strong{color:#fff;}
-.plot-caption{color:#8798ae;font-size:.78rem;line-height:1.55;margin-top:-.25rem;margin-bottom:.8rem;}
-[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p{line-height:1.5;}
-@media(max-width:1000px){
-  .insight-grid{grid-template-columns:1fr;}
-  .rype-nav{align-items:flex-start;gap:12px;}
-  .nav-pill{display:none;}
-}
-
-
-/* v0.5 sidebar hierarchy and final polish */
-.sidebar-step{
-    margin:.95rem 0 .45rem;
-    padding:.62rem .72rem;
-    border-radius:13px;
-    background:rgba(255,255,255,.045);
-    border:1px solid rgba(255,255,255,.08);
-}
-.sidebar-step .step-no{
-    color:#D85B3F;
-    font-size:.62rem;
-    font-weight:900;
-    letter-spacing:.16em;
-    text-transform:uppercase;
-}
-.sidebar-step .step-title{
-    color:#FFFFFF;
-    font-size:.82rem;
-    font-weight:850;
-    margin-top:.12rem;
-}
-.sidebar-mini-note{
-    color:#9AA8BA;
-    font-size:.74rem;
-    line-height:1.45;
-    margin:.25rem 0 .55rem;
-}
-.route-legend{
-    background:rgba(7,11,18,.86);
-    border:1px solid rgba(139,200,255,.22);
-    border-radius:16px;
-    padding:.9rem 1rem;
-    color:#CFDAE8;
-    margin-top:.65rem;
-}
-.route-legend b{color:#fff;}
-
-</style>
-""", unsafe_allow_html=True)
-
-# ============================================================
-# DATA LAYER
-# ============================================================
-
-@st.cache_data
-def load_data():
-    geo_df = pd.read_csv(f"{DATA_PATH}/real_external_geo_risk_table.csv")
-    port_bridge_df = pd.read_csv(f"{DATA_PATH}/real_port_country_bridge.csv")
-    propagation_df = pd.read_csv(f"{DATA_PATH}/propagation_df.csv")
-    scenario_df = pd.read_csv(f"{DATA_PATH}/scenario_df.csv")
-    temporal_df = pd.read_csv(f"{DATA_PATH}/temporal_df.csv")
-    resilience_df = pd.read_csv(f"{DATA_PATH}/resilience_df.csv")
-    hitl_df = pd.read_csv(f"{DATA_PATH}/hitl_df.csv")
-    with open(f"{DATA_PATH}/metadata.json", "r") as f:
-        metadata = json.load(f)
-    geo_df["risk_month"] = pd.to_datetime(geo_df["risk_month"])
-    return geo_df, port_bridge_df, propagation_df, scenario_df, temporal_df, resilience_df, hitl_df, metadata
-
-geo_df, port_bridge_df, propagation_df, scenario_df, temporal_df, resilience_df, hitl_df, metadata = load_data()
-
-ISO3_TO_ISO2 = {"AFG":"AF","ARE":"AE","CHN":"CN","EGY":"EG","NLD":"NL","SAU":"SA","SGP":"SG","YEM":"YE"}
-geo_df["country_code_iso2"] = geo_df["country_code"].map(ISO3_TO_ISO2)
-latest_geo = geo_df.sort_values("risk_month").groupby("country_code", as_index=False).tail(1)
-
-port_risk_df = port_bridge_df.merge(
-    latest_geo,
-    left_on="country_code",
-    right_on="country_code_iso2",
-    how="inner",
-    suffixes=("_port", "_geo")
-)
-port_risk_df = port_risk_df[[
-    "port_locode", "port_name", "country_code_geo", "country_name", "risk_month",
-    "conflict_index_real", "governance_fragility_risk", "sanctions_risk",
-    "trade_restriction_risk", "geo_risk_score_real", "coordinates"
-]].rename(columns={"country_code_geo":"country_code"})
-
-# ============================================================
-# COORDINATES + MARITIME ROUTE GEOMETRY
-# ============================================================
-
-FALLBACK_COORDS = {
-    "YEADE": (12.78, 44.99), "SGSIN": (1.26, 103.82), "NLRTM": (51.92, 4.48),
-    "CNSHA": (31.23, 121.47), "SAJED": (21.49, 39.19), "EGPSD": (31.26, 32.30),
-    "SAJED": (21.49, 39.19), "EGALY": (31.20, 29.92)
-}
-
-MARITIME_WAYPOINTS = {
-    ("YEADE", "NLRTM"): [(12.78,44.99),(12.6,43.3),(18.7,39.5),(27.5,33.8),(30.5,32.3),(35.3,20.0),(37.5,10.0),(36.0,-5.5),(43.5,-9.5),(49.0,-5.5),(51.92,4.48)],
-    ("SGSIN", "NLRTM"): [(1.26,103.82),(5.5,95.0),(8.0,80.0),(12.0,60.0),(12.6,43.3),(27.5,33.8),(30.5,32.3),(35.3,20.0),(37.5,10.0),(36.0,-5.5),(43.5,-9.5),(49.0,-5.5),(51.92,4.48)],
-    ("CNSHA", "NLRTM"): [(31.23,121.47),(24.0,120.0),(12.0,110.0),(1.26,103.82),(5.5,95.0),(12.6,43.3),(27.5,33.8),(30.5,32.3),(35.3,20.0),(37.5,10.0),(36.0,-5.5),(43.5,-9.5),(49.0,-5.5),(51.92,4.48)],
-    ("SAJED", "NLRTM"): [(21.49,39.19),(22.0,38.0),(27.5,33.8),(30.5,32.3),(35.3,20.0),(37.5,10.0),(36.0,-5.5),(43.5,-9.5),(49.0,-5.5),(51.92,4.48)]
-}
-
-def parse_unlocode_coord(x):
-    if pd.isna(x):
-        return None
-    try:
-        parts = str(x).strip().split()
-        if len(parts) != 2:
-            return None
-        lat_s, lon_s = parts
-        lat = int(lat_s[:-1][:2]) + int(lat_s[:-1][2:]) / 60
-        lon = int(lon_s[:-1][:3]) + int(lon_s[:-1][3:]) / 60
-        if lat_s[-1] == "S": lat *= -1
-        if lon_s[-1] == "W": lon *= -1
-        return lat, lon
-    except Exception:
-        return None
-
-def get_port_coord(code):
-    if code in FALLBACK_COORDS:
-        return FALLBACK_COORDS[code]
-    row = port_bridge_df[port_bridge_df["port_locode"] == code]
-    if row.empty:
-        return None
-    return parse_unlocode_coord(row.iloc[0].get("coordinates"))
-
-def ocean_route(origin_code, dest_code):
-    if (origin_code, dest_code) in MARITIME_WAYPOINTS:
-        return MARITIME_WAYPOINTS[(origin_code, dest_code)]
-    start = get_port_coord(origin_code)
-    end = get_port_coord(dest_code)
-    if start is None or end is None:
-        return None
-    # Curved fallback route with a midpoint shifted toward oceanic corridor.
-    lat1, lon1 = start
-    lat2, lon2 = end
-    mid = ((lat1 + lat2) / 2 - 8, (lon1 + lon2) / 2)
-    return [start, mid, end]
-
-# ============================================================
-# RYPE ENGINE
-# ============================================================
-
-def analyze_route_real(origin_port, destination_port, random_state=42):
-    origin_rows = port_risk_df[port_risk_df["port_locode"] == origin_port]
-    destination_rows = port_bridge_df[port_bridge_df["port_locode"] == destination_port]
-    if origin_rows.empty:
-        raise ValueError(f"Origin port not found in real risk layer: {origin_port}")
-    if destination_rows.empty:
-        raise ValueError(f"Destination port not found: {destination_port}")
-
-    origin = origin_rows.iloc[0]
-    destination = destination_rows.iloc[0]
-    geo_pressure = float(np.clip(
-        0.40 * origin["conflict_index_real"] +
-        0.25 * origin["governance_fragility_risk"] +
-        0.20 * origin["sanctions_risk"] +
-        0.15 * origin["trade_restriction_risk"], 0, 1
-    ))
-    rng = np.random.default_rng(random_state)
-    delay_hours = max(1, 8 + 55 * geo_pressure + rng.normal(0, 4))
-    delay_normalized = np.clip((delay_hours - 1) / 66, 0, 1)
-    reroute_probability = np.clip(0.05 + 0.65 * geo_pressure, 0, 1)
-    rerouted = int(rng.random() < reroute_probability)
-    customs_probability = np.clip(0.03 + 0.60 * origin["trade_restriction_risk"] + 0.20 * origin["sanctions_risk"], 0, 1)
-    customs_issue = int(rng.random() < customs_probability)
-    damage_probability = np.clip(0.02 + 0.25 * origin["conflict_index_real"] + 0.15 * rerouted, 0, 1)
-    damaged = int(rng.random() < damage_probability)
-    disruption_score = 0.35 * delay_normalized + 0.25 * rerouted + 0.20 * customs_issue + 0.20 * damaged
-    disrupted = int(disruption_score > 0.45)
-
-    D1 = 0.50 * geo_pressure + 0.50 * delay_normalized
-    D2 = 0.40 * D1 + 0.35 * customs_issue + 0.25 * rerouted
-    D3 = 0.45 * D2 + 0.35 * rerouted + 0.20 * geo_pressure
-    D4 = 0.50 * D3 + 0.30 * delay_normalized + 0.20 * damaged
-    p_success = (1-D1) * (1-D2) * (1-D3) * (1-D4)
-    edge_risk_real = 0.30 * geo_pressure + 0.25 * D4 + 0.20 * disrupted + 0.15 * rerouted + 0.10 * (1 - p_success)
-
-    return {
-        "origin_port": origin_port, "origin_name": origin["port_name"], "origin_country": origin["country_name"],
-        "destination_port": destination_port, "destination_name": destination["port_name"], "destination_country_code": destination["country_code"],
-        "risk_month": origin["risk_month"], "geo_pressure": float(geo_pressure), "delay_hours": float(delay_hours),
-        "delay_normalized": float(delay_normalized), "reroute_probability": float(reroute_probability), "rerouted": int(rerouted),
-        "customs_probability": float(customs_probability), "customs_issue": int(customs_issue), "damage_probability": float(damage_probability),
-        "damaged": int(damaged), "disruption_score": float(disruption_score), "disrupted": int(disrupted),
-        "D1_supplier": float(D1), "D2_port": float(D2), "D3_route": float(D3), "D4_lastmile": float(D4),
-        "p_success": float(p_success), "edge_risk_real": float(edge_risk_real)
-    }
-
-def compare_routes_real(original_origin, destination, alternative_origin, random_state=42):
-    original = analyze_route_real(original_origin, destination, random_state)
-    alternative = analyze_route_real(alternative_origin, destination, random_state)
-    comparison = pd.DataFrame([
-        {"Scenario":"Original", "Route":f"{original_origin} → {destination}", "Geo Pressure":original["geo_pressure"], "D1 Supplier":original["D1_supplier"], "D2 Port":original["D2_port"], "D3 Route":original["D3_route"], "D4 Last-mile":original["D4_lastmile"], "P Success":original["p_success"], "Edge Risk":original["edge_risk_real"]},
-        {"Scenario":"Counterfactual", "Route":f"{alternative_origin} → {destination}", "Geo Pressure":alternative["geo_pressure"], "D1 Supplier":alternative["D1_supplier"], "D2 Port":alternative["D2_port"], "D3 Route":alternative["D3_route"], "D4 Last-mile":alternative["D4_lastmile"], "P Success":alternative["p_success"], "Edge Risk":alternative["edge_risk_real"]}
-    ])
-    return original, alternative, comparison
-
-# ============================================================
-# UI HELPERS
-# ============================================================
-
-def metric_card(label, value, note):
-    st.markdown((
-        '<div class="metric-card">'
-        f'<div class="metric-label">{label}</div>'
-        f'<div class="metric-value">{value}</div>'
-        f'<div class="metric-note">{note}</div>'
-        '</div>'
-    ), unsafe_allow_html=True)
-
-def risk_label(x):
-    if x >= 0.70: return "HIGH RISK"
-    if x >= 0.40: return "MODERATE RISK"
-    return "LOW RISK"
-
-def risk_badge(x):
-    cls = "badge-high" if x >= .70 else "badge-mod" if x >= .40 else "badge-low"
-    return f'<span class="{cls}">{risk_label(x)}</span>'
-
-def decision_signal(original, alternative):
-    risk_red = original["edge_risk_real"] - alternative["edge_risk_real"]
-    success_gain = alternative["p_success"] - original["p_success"]
-    if risk_red > 0.10 and success_gain > 0:
-        return "Evaluate counterfactual origin substitution.", "The alternative origin materially reduces propagated edge risk and improves route success probability.", risk_red, success_gain
-    if original["edge_risk_real"] >= 0.70:
-        return "Escalate shipment review before execution.", "The selected route remains exposed to high operational propagation risk under the current scenario state.", risk_red, success_gain
-    return "Proceed with monitoring.", "The selected route remains within an acceptable prototype risk band, but should still be monitored for external shocks.", risk_red, success_gain
-
-def plotly_theme(fig, height=440):
-    fig.update_layout(
-        template="plotly_dark", height=height, margin=dict(l=20,r=20,t=58,b=28),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#0f1723", font=dict(color="#d7e0ec"),
-        title_font=dict(size=18, color="#f7fbff"), legend=dict(bgcolor="rgba(0,0,0,0)")
-    )
-    fig.update_xaxes(gridcolor="rgba(255,255,255,.08)", zerolinecolor="rgba(255,255,255,.15)")
-    fig.update_yaxes(gridcolor="rgba(255,255,255,.08)", zerolinecolor="rgba(255,255,255,.15)")
-    return fig
-
-def dataframe_dark(df, fmt=None):
-    styler = df.style
-    if fmt:
-        styler = styler.format(fmt)
-    return styler
-
-# ============================================================
-# SIDEBAR
-# ============================================================
-
-st.sidebar.markdown("## ◈ RYPE Control Layer")
-st.sidebar.caption("Searchable route configuration and counterfactual design")
-
-origin_options = port_risk_df[["port_locode","port_name","country_name"]].drop_duplicates().sort_values(["country_name","port_name"])
-destination_options = port_bridge_df[["port_locode","port_name","country_code"]].drop_duplicates().sort_values(["country_code","port_name"])
-origin_codes = origin_options["port_locode"].tolist()
-destination_codes = destination_options["port_locode"].tolist()
-
-def origin_fmt(code):
-    row = origin_options[origin_options["port_locode"] == code].iloc[0]
-    return f"{code} — {row['port_name']}, {row['country_name']}"
-
-def dest_fmt(code):
-    row = destination_options[destination_options["port_locode"] == code].iloc[0]
-    return f"{code} — {row['port_name']}, {row['country_code']}"
-
-origin_port = st.sidebar.selectbox("Origin risk node", origin_codes, index=origin_codes.index("YEADE") if "YEADE" in origin_codes else 0, format_func=origin_fmt)
-destination_port = st.sidebar.selectbox("Destination port", destination_codes, index=destination_codes.index("NLRTM") if "NLRTM" in destination_codes else 0, format_func=dest_fmt)
-alternative_codes = [x for x in origin_codes if x != origin_port]
-st.sidebar.markdown("""
-<div class="sidebar-step">
-  <div class="step-no">02 Counterfactual</div>
-  <div class="step-title">Define the intervention candidate</div>
-</div>
-<div class="sidebar-mini-note">The alternative origin is compared against the active route to quantify risk reduction and success-probability gain.</div>
-""", unsafe_allow_html=True)
-
-alternative_origin = st.sidebar.selectbox("Counterfactual origin", alternative_codes, index=alternative_codes.index("SGSIN") if "SGSIN" in alternative_codes else 0, format_func=origin_fmt)
-
-with st.sidebar.expander("Advanced stochastic control", expanded=False):
-    st.markdown("""
-    **Simulation seed** fixes the random components in causal operational regeneration.
-    It makes delay, reroute, customs and damage outcomes reproducible while preserving a stochastic what-if structure.
-    """)
-    random_state = st.number_input("Simulation seed", min_value=0, max_value=9999, value=42, step=1)
-
-st.sidebar.markdown("---")
-st.sidebar.success("Tip: Click a selectbox and type a port code/name. Example: YEADE, SGSIN, Rotterdam.")
-st.sidebar.info("v0.5 keeps AIS as a planned extension; the current MVP focuses on explainable route risk propagation.")
-
-# ============================================================
-# RUN ENGINE
-# ============================================================
-
-original, alternative, comparison_df = compare_routes_real(origin_port, destination_port, alternative_origin, int(random_state))
-action, tone, risk_red, success_gain = decision_signal(original, alternative)
-
-# ============================================================
-# HEADER
-# ============================================================
-
-st.markdown("""
-<div class="rype-nav">
-  <div class="brand">
-    <div class="brand-mark" aria-label="RYPE network shield mark">
-      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M20 4.5L32 9.2V18.8C32 26.7 27.1 32.7 20 35.5C12.9 32.7 8 26.7 8 18.8V9.2L20 4.5Z" stroke="#8BC8FF" stroke-width="1.7"/>
-        <path d="M12.5 14.2L18.2 18.5L24.4 12.8L29 17.1M18.2 18.5L22.2 25.5L28.1 22.2" stroke="#75D7B2" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="12.5" cy="14.2" r="2.1" fill="#8BC8FF"/>
-        <circle cx="18.2" cy="18.5" r="2.1" fill="#D9C58A"/>
-        <circle cx="24.4" cy="12.8" r="2.1" fill="#75D7B2"/>
-        <circle cx="29" cy="17.1" r="2.1" fill="#8BC8FF"/>
-        <circle cx="22.2" cy="25.5" r="2.1" fill="#75D7B2"/>
-        <circle cx="28.1" cy="22.2" r="2.1" fill="#D9C58A"/>
-      </svg>
-    </div>
-    <div>
-      <div class="brand-title">RYPE — Risk Yield Propagation Engine</div>
-      <div class="brand-sub">Explainable geopolitical supply-chain risk intelligence prototype</div>
-    </div>
-  </div>
-  <div class="nav-pill">Research MVP v0.5 · Feature Freeze</div>
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown('<span class="rype-eyebrow">EXPLAINABLE OPERATIONAL RISK INTELLIGENCE</span>', unsafe_allow_html=True)
-st.markdown('<div class="rype-title">Operational risk, explained as a decision.</div>', unsafe_allow_html=True)
-st.markdown("""
-<div class="rype-subtitle">
-RYPE connects externally grounded geopolitical risk signals with causal operational regeneration,
-D1–D4 propagation, counterfactual intervention analysis and human-in-the-loop decision support.
-The objective is not only to score risk, but to explain where it comes from and what a decision-maker can do next.
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown(f"""
-<div class="signal">
-  <div class="signal-title">Decision Signal</div>
-  <div class="signal-main">{action}</div>
-  <div class="signal-sub">{tone}<br>
-  Edge risk change: <b>{risk_red:+.3f}</b> · Success probability gain: <b>{success_gain*100:+.2f} percentage points</b></div>
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown('<div class="kpi-grid">', unsafe_allow_html=True)
-c1, c2, c3, c4 = st.columns(4)
-with c1: metric_card("Edge Risk", f"{original['edge_risk_real']:.3f}", risk_label(original["edge_risk_real"]))
-with c2: metric_card("Geo Pressure", f"{original['geo_pressure']:.3f}", "External risk signal at origin node")
-with c3: metric_card("P(success)", f"{original['p_success']*100:.2f}%", "Propagation-adjusted success probability")
-with c4: metric_card("Expected Delay", f"{original['delay_hours']:.1f} h", "Causally regenerated delay estimate")
-st.markdown('</div>', unsafe_allow_html=True)
-
-# ============================================================
-# TABS
-# ============================================================
-
-tabs = st.tabs(["Executive Overview", "Route Map", "Propagation", "Counterfactual", "Scenario Lab", "Temporal & Resilience", "HITL", "Methodology"])
-
-# ============================================================
-# EXECUTIVE OVERVIEW
-# ============================================================
-
-with tabs[0]:
-    left, right = st.columns([1.15, .85])
-    with left:
-        st.markdown("### Executive route intelligence")
-        st.markdown(f"""
-        <div class="hero-card">
-        <div style="font-size:1.25rem;font-weight:900;color:white;margin-bottom:.5rem;">
-        {original['origin_name']} ({origin_port}) → {original['destination_name']} ({destination_port})
-        </div>
-        <div style="color:#aebbd0;line-height:1.65;">
-        Current route status: {risk_badge(original['edge_risk_real'])}<br><br>
-        The dominant external trigger is the geopolitical pressure score at the origin risk node.
-        RYPE then regenerates operational states and propagates them through supplier, port, route and last-mile mechanisms.
-        </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        drivers = pd.DataFrame({
-            "Driver": ["Geopolitical pressure", "Delay normalization", "Reroute probability", "Customs probability", "Damage probability", "D4 last-mile"],
-            "Value": [original["geo_pressure"], original["delay_normalized"], original["reroute_probability"], original["customs_probability"], original["damage_probability"], original["D4_lastmile"]]
-        }).sort_values("Value", ascending=True)
-        fig = px.bar(drivers, x="Value", y="Driver", orientation="h", title="Risk Driver Decomposition", text="Value")
-        fig.update_traces(texttemplate="%{text:.2f}", textposition="outside", cliponaxis=False)
-        fig.update_xaxes(range=[0, 1.08])
-        st.plotly_chart(plotly_theme(fig, 440), width="stretch")
-
-    with right:
-        st.markdown("### Operational state interpretation")
-        state_items = [
-            ("Reroute", original["rerouted"], f"Probability {original['reroute_probability']:.2f}"),
-            ("Customs issue", original["customs_issue"], f"Probability {original['customs_probability']:.2f}"),
-            ("Cargo damage", original["damaged"], f"Probability {original['damage_probability']:.2f}"),
-            ("Disruption", original["disrupted"], f"Score {original['disruption_score']:.2f}"),
-        ]
-        for name, val, note in state_items:
-            color = "#ff6f61" if val else "#54d39a"
-            st.markdown(f"""
-            <div class="panel-light" style="margin-bottom:10px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div style="font-weight:900;color:white;">{name}</div>
-                <div style="color:{color};font-weight:900;">{'ACTIVE' if val else 'NO'}</div>
-              </div>
-              <div style="color:#91a1b6;font-size:.82rem;margin-top:3px;">{note}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        st.markdown("### Edge-risk contribution")
-        xai = pd.DataFrame({
-            "Feature": ["geo_pressure", "D4_lastmile", "disrupted", "rerouted", "1 - p_success"],
-            "Contribution": [0.30*original["geo_pressure"], 0.25*original["D4_lastmile"], 0.20*original["disrupted"], 0.15*original["rerouted"], 0.10*(1-original["p_success"])]
-        }).sort_values("Contribution", ascending=True)
-        fig = px.bar(xai, x="Contribution", y="Feature", orientation="h", title="XAI-style contribution structure", text="Contribution")
-        fig.update_traces(texttemplate="%{text:.3f}", textposition="outside", cliponaxis=False)
-        fig.update_xaxes(range=[0, max(.32, xai["Contribution"].max()*1.2)])
-        st.plotly_chart(plotly_theme(fig, 360), width="stretch")
-
-# ============================================================
-# ROUTE MAP
-# ============================================================
-
-with tabs[1]:
-    st.markdown("### Maritime route map")
-    route = ocean_route(origin_port, destination_port)
-    origin_coord = get_port_coord(origin_port)
-    dest_coord = get_port_coord(destination_port)
-    if route and origin_coord and dest_coord:
-        route_lats = [p[0] for p in route]
-        route_lons = [p[1] for p in route]
-        lat_o, lon_o = origin_coord
-        lat_d, lon_d = dest_coord
-        risk_color = "#ff6f61" if original["edge_risk_real"] >= .70 else "#f0b85a" if original["edge_risk_real"] >= .40 else "#54d39a"
-        fig = go.Figure()
-        fig.add_trace(go.Scattergeo(
-            lon=route_lons, lat=route_lats, mode="lines", name="Estimated maritime corridor",
-            line=dict(width=4.5, color=risk_color),
-            hovertemplate="Estimated maritime corridor<extra></extra>"
-        ))
-        fig.add_trace(go.Scattergeo(
-            lon=[lon_o, lon_d], lat=[lat_o, lat_d], mode="markers", name="Ports",
-            marker=dict(size=[18,16], color=["#ff6f61", "#4ea1ff"], line=dict(width=2, color="white")),
-            text=[f"Origin: {original['origin_name']} ({origin_port})<br>Geo pressure: {original['geo_pressure']:.3f}<br>Edge risk: {original['edge_risk_real']:.3f}",
-                  f"Destination: {original['destination_name']} ({destination_port})<br>Route context node"],
-            hovertemplate="%{text}<extra></extra>"
-        ))
-        fig.update_layout(
-            height=650, margin=dict(l=0,r=0,t=10,b=0), paper_bgcolor="rgba(0,0,0,0)",
-            geo=dict(
-                projection_type="natural earth", showland=True, landcolor="#1d2735", showocean=True, oceancolor="#0b1522",
-                showcountries=True, countrycolor="rgba(255,255,255,.18)", coastlinecolor="rgba(255,255,255,.22)", showframe=False,
-                bgcolor="rgba(0,0,0,0)"
-            ),
-            font=dict(color="#eaf0f8"),
-            legend=dict(bgcolor="rgba(15,23,35,.75)")
-        )
-        st.plotly_chart(fig, width="stretch")
-        st.markdown(f"""
-        <div class="method-note">
-        The route is rendered as an estimated maritime corridor using known sea-waypoints for major lanes such as the Red Sea, Suez and European approach.
-        It is not a live AIS track. AIS vessel position, speed anomaly and ETA drift remain a planned extension layer.
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.warning("Coordinate information is missing for one of the selected ports.")
-
-# ============================================================
-# PROPAGATION
-# ============================================================
-
-with tabs[2]:
-    st.markdown('<div class="section-kicker">Mechanism path · downstream concentration</div>', unsafe_allow_html=True)
-    st.markdown("### D1–D4 propagation intelligence")
-
-    prop = pd.DataFrame({
-        "Node": ["D1 Supplier", "D2 Port", "D3 Route", "D4 Last-mile"],
-        "Risk": [
-            original["D1_supplier"],
-            original["D2_port"],
-            original["D3_route"],
-            original["D4_lastmile"]
-        ]
-    })
-
-    prop["Step"] = range(1, len(prop) + 1)
-    prop["Delta_from_previous"] = prop["Risk"].diff().fillna(0.0)
-    dominant = prop.sort_values("Risk", ascending=False).iloc[0]
-    largest_jump = prop.iloc[prop["Delta_from_previous"].abs().idxmax()]
-    downstream_concentration = float(prop[prop["Node"].isin(["D3 Route","D4 Last-mile"])]["Risk"].mean())
-    upstream_average = float(prop[prop["Node"].isin(["D1 Supplier","D2 Port"])]["Risk"].mean())
-    concentration_delta = downstream_concentration - upstream_average
-
-    st.markdown(f"""
-    <div class="insight-grid">
-      <div class="insight-card"><div class="insight-label">Dominant propagation node</div><div class="insight-value">{dominant['Node']}</div><div class="insight-note">Highest active node risk: {dominant['Risk']:.3f}.</div></div>
-      <div class="insight-card"><div class="insight-label">Largest node-to-node movement</div><div class="insight-value">{largest_jump['Node']}</div><div class="insight-note">Δ from previous node: {largest_jump['Delta_from_previous']:+.3f}.</div></div>
-      <div class="insight-card"><div class="insight-label">Downstream concentration</div><div class="insight-value">{downstream_concentration:.3f}</div><div class="insight-note">D3–D4 average versus D1–D2: {concentration_delta:+.3f}.</div></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=prop["Node"], y=prop["Risk"],
-        mode="lines+markers",
-        line=dict(width=4, color="#8BC8FF"),
-        marker=dict(size=14, color=["#D9C58A","#8BC8FF","#75D7B2","#D85B3F"], line=dict(width=2, color="#E8EEF8")),
-        fill="tozeroy",
-        fillcolor="rgba(139,200,255,0.10)",
-        hovertemplate="<b>%{x}</b><br>Risk=%{y:.3f}<extra></extra>"
-    ))
-    fig.update_yaxes(range=[0, 1], title="Risk intensity")
-    fig.update_xaxes(title=None)
-    fig.update_layout(title="Sequential propagation path: supplier → port → route → last-mile")
-    st.plotly_chart(plotly_theme(fig, 500), width="stretch")
-
-    st.markdown(f"""
-    <div class="decision-brief">
-      <strong>Propagation brief.</strong> The current route does not merely have a scalar risk value; it has a risk <em>shape</em>.
-      The highest mechanism state is <strong>{dominant['Node']}</strong>. Downstream concentration is
-      <strong>{downstream_concentration:.3f}</strong>, indicating whether exposure accumulates toward route/last-mile operations.
-      This supports targeted review: upstream supplier remediation is different from downstream route or terminal intervention.
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.dataframe(
-        dataframe_dark(prop[["Node","Risk","Delta_from_previous"]], {"Risk":"{:.3f}","Delta_from_previous":"{:+.3f}"}),
-        hide_index=True, width="stretch"
-    )
-
-# ============================================================
-# COUNTERFACTUAL
-# ============================================================
-
-with tabs[3]:
-    st.markdown("### Counterfactual intervention analysis")
-    a, b, c = st.columns(3)
-    with a: metric_card("Risk Reduction", f"{risk_red:+.3f}", "Positive value means counterfactual reduces edge risk")
-    with b: metric_card("P(success) Gain", f"{success_gain*100:+.2f} pp", "Percentage-point change under counterfactual")
-    with c: metric_card("Alternative", f"{alternative_origin}", f"{alternative['origin_name']} as substituted origin")
-    cf_long = comparison_df.melt(id_vars=["Scenario","Route"], value_vars=["Geo Pressure","D1 Supplier","D2 Port","D3 Route","D4 Last-mile","Edge Risk"], var_name="Metric", value_name="Value")
-    fig = px.bar(cf_long, x="Metric", y="Value", color="Scenario", barmode="group", title="Original vs Counterfactual Risk Structure", text="Value")
-    fig.update_traces(texttemplate="%{text:.2f}", textposition="outside", cliponaxis=False)
-    fig.update_yaxes(range=[0,1.08])
-    st.plotly_chart(plotly_theme(fig, 520), width="stretch")
-    st.dataframe(dataframe_dark(comparison_df, {"Geo Pressure":"{:.3f}","D1 Supplier":"{:.3f}","D2 Port":"{:.3f}","D3 Route":"{:.3f}","D4 Last-mile":"{:.3f}","P Success":"{:.4f}","Edge Risk":"{:.3f}"}), hide_index=True, width="stretch")
-
-# ============================================================
-# SCENARIO LAB
-# ============================================================
-
-with tabs[4]:
-    st.markdown('<div class="section-kicker">Stress testing · comparative sensitivity</div>', unsafe_allow_html=True)
-    st.markdown("### Scenario stress laboratory")
-
-    scenario_rank = scenario_df.copy()
-    scenario_rank["Risk_Shock"] = scenario_rank["Delta_Risk"]
-    scenario_rank["Success_Impact_pp"] = scenario_rank["Delta_P_Success"] * 100
-    worst_risk = scenario_rank.sort_values("Risk_Shock", ascending=False).iloc[0]
-    worst_success = scenario_rank.sort_values("Success_Impact_pp").iloc[0]
-    compound_row = scenario_rank[scenario_rank["Scenario"].str.contains("Compound", case=False, na=False)]
-    compound_name = compound_row.iloc[0]["Scenario"] if not compound_row.empty else scenario_rank.sort_values("Chain_Risk", ascending=False).iloc[0]["Scenario"]
-
-    st.markdown(f"""
-    <div class="insight-grid">
-      <div class="insight-card"><div class="insight-label">Largest chain-risk shock</div><div class="insight-value">{worst_risk['Scenario']}</div><div class="insight-note">Δ risk {worst_risk['Risk_Shock']:+.3f} versus baseline.</div></div>
-      <div class="insight-card"><div class="insight-label">Largest success deterioration</div><div class="insight-value">{worst_success['Scenario']}</div><div class="insight-note">{worst_success['Success_Impact_pp']:+.2f} percentage-point impact.</div></div>
-      <div class="insight-card"><div class="insight-label">Multi-stressor reference</div><div class="insight-value">{compound_name}</div><div class="insight-note">Use as the compound-stress comparison case.</div></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    fig = px.scatter(
-        scenario_rank, x="Chain_Risk", y="P_Success", color="Scenario",
-        size=np.abs(scenario_rank["Delta_Risk"]) + 0.025,
-        title="Scenario risk–success space",
-        hover_name="Scenario",
-        hover_data={"Chain_Risk":":.4f","P_Success":":.4f","Delta_Risk":":.4f","Delta_P_Success":":.4f","Scenario":False}
-    )
-    fig.update_traces(mode="markers", marker=dict(line=dict(width=1.2, color="#E8EEF8"), sizemin=10))
-    fig.update_xaxes(range=[max(0, scenario_rank["Chain_Risk"].min()-0.04), min(1, scenario_rank["Chain_Risk"].max()+0.06)], title="Chain risk →")
-    fig.update_yaxes(range=[0, max(.05, scenario_rank["P_Success"].max()+0.02)], title="Propagation-adjusted P(success) →")
-    fig.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0))
-    st.plotly_chart(plotly_theme(fig, 600), width="stretch")
-    st.markdown('<div class="plot-caption">Interpretation: upper-left is directionally preferable—lower chain risk with higher propagation-adjusted success. Bubble size represents absolute risk displacement from baseline; scenario identity is available on hover and in the legend.</div>', unsafe_allow_html=True)
-
-    prop_long = propagation_df.melt(id_vars="Scenario", var_name="Node", value_name="Risk")
-    fig = px.bar(prop_long, x="Scenario", y="Risk", color="Node", barmode="group", title="D1–D4 propagation under stress")
-    fig.update_yaxes(range=[0,1], title="Node risk")
-    fig.update_xaxes(tickangle=-18, title=None)
-    fig.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.28, xanchor="left", x=0), bargap=.18, bargroupgap=.05)
-    st.plotly_chart(plotly_theme(fig, 610), width="stretch")
-    st.markdown(f"""
-    <div class="decision-brief">
-      <strong>Decision interpretation.</strong> The stress laboratory should be read as a sensitivity surface, not as a live optimizer.
-      In the current export, <strong>{worst_risk['Scenario']}</strong> creates the largest incremental chain-risk shock, while
-      <strong>{worst_success['Scenario']}</strong> produces the strongest deterioration in propagation-adjusted success.
-      A decision-maker should therefore distinguish <em>risk amplification</em> from <em>success-probability erosion</em>; they are related but not identical response variables.
-    </div>
-    """, unsafe_allow_html=True)
-
-# ============================================================
-# TEMPORAL & RESILIENCE
-# ============================================================
-
-with tabs[5]:
-    st.markdown('<div class="section-kicker">Dynamics · recovery behavior</div>', unsafe_allow_html=True)
-    st.markdown("### Temporal propagation and resilience intelligence")
-
-    temp_nodes = ["D1_Supplier", "D2_Port", "D3_Route", "D4_Lastmile"]
-    temp_risk_matrix = temporal_df[temp_nodes]
-    peak_node = temp_risk_matrix.max().idxmax()
-    peak_step = int(temporal_df.loc[temp_risk_matrix[peak_node].idxmax(), "Step"])
-    peak_value = float(temp_risk_matrix[peak_node].max())
-    min_success_step = int(temporal_df.loc[temporal_df["P_Success"].idxmin(), "Step"])
-    min_success = float(temporal_df["P_Success"].min())
-
-    res_start = float(resilience_df["D4_Lastmile"].iloc[0])
-    res_end = float(resilience_df["D4_Lastmile"].iloc[-1])
-    d4_reduction = res_start - res_end
-    success_start = float(resilience_df["P_Success"].iloc[0])
-    success_end = float(resilience_df["P_Success"].iloc[-1])
-    success_recovery_pp = (success_end - success_start) * 100
-
-    st.markdown(f"""
-    <div class="insight-grid">
-      <div class="insight-card"><div class="insight-label">Peak temporal risk</div><div class="insight-value">{peak_node}</div><div class="insight-note">Step {peak_step} · peak intensity {peak_value:.3f}.</div></div>
-      <div class="insight-card"><div class="insight-label">Minimum success point</div><div class="insight-value">Step {min_success_step}</div><div class="insight-note">Lowest P(success): {min_success*100:.2f}%.</div></div>
-      <div class="insight-card"><div class="insight-label">Resilience recovery</div><div class="insight-value">{success_recovery_pp:+.2f} pp</div><div class="insight-note">Final success-probability change versus initial resilience state.</div></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    temp_long = temporal_df.melt(
-        id_vars="Step",
-        value_vars=temp_nodes,
-        var_name="Node",
-        value_name="Risk"
-    )
-
-    fig = px.line(temp_long, x="Step", y="Risk", color="Node", markers=True, title="Temporal risk propagation")
-    fig.update_yaxes(range=[0, 1], title="Risk intensity")
-    fig.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.24, xanchor="left", x=0))
-    st.plotly_chart(plotly_theme(fig, 560), width="stretch")
-
-    res_long = resilience_df.melt(
-        id_vars="Step",
-        value_vars=temp_nodes,
-        var_name="Node",
-        value_name="Risk"
-    )
-
-    fig = px.line(res_long, x="Step", y="Risk", color="Node", markers=True, title="Resilience intervention trajectory")
-    fig.update_yaxes(range=[0, 1], title="Risk intensity")
-    fig.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.24, xanchor="left", x=0))
-    st.plotly_chart(plotly_theme(fig, 560), width="stretch")
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=resilience_df["Step"], y=resilience_df["P_Success"],
-        mode="lines+markers",
-        line=dict(width=4, color="#75D7B2"),
-        marker=dict(size=10, line=dict(width=1.5, color="#E8EEF8")),
-        fill="tozeroy",
-        fillcolor="rgba(117,215,178,.12)",
-        hovertemplate="Step %{x}<br>P(success)=%{y:.4f}<extra></extra>"
-    ))
-    fig.update_layout(title="Success probability recovery under resilience intervention")
-    fig.update_yaxes(range=[0, max(0.20, resilience_df["P_Success"].max()+0.04)], title="P(success)")
-    fig.update_xaxes(title="Step")
-    st.plotly_chart(plotly_theme(fig, 460), width="stretch")
-
-    st.markdown(f"""
-    <div class="decision-brief">
-      <strong>Temporal-resilience brief.</strong> The temporal export shows where instability peaks before intervention,
-      while the resilience trajectory shows whether a staged mitigation path improves the operating state.
-      In this run, D4 last-mile risk changes from <strong>{res_start:.3f}</strong> to <strong>{res_end:.3f}</strong>
-      ({d4_reduction:+.3f} reduction), while P(success) recovers by <strong>{success_recovery_pp:+.2f} percentage points</strong>.
-      This helps separate early warning from recovery planning.
-    </div>
-    """, unsafe_allow_html=True)
-
-# ============================================================
-# HITL
-# ============================================================
-
-with tabs[6]:
-    st.markdown('<div class="section-kicker">Expert override · governed intervention</div>', unsafe_allow_html=True)
-    st.markdown("### Human-in-the-loop decision space")
-
-    hitl_view = hitl_df.copy()
-    baseline_hitl = hitl_view[hitl_view["Scenario"] == "Baseline"]
-    base_risk = float(baseline_hitl["Chain_Risk"].iloc[0]) if not baseline_hitl.empty else float(hitl_view["Chain_Risk"].median())
-    base_success = float(baseline_hitl["P_Success"].iloc[0]) if not baseline_hitl.empty else float(hitl_view["P_Success"].median())
-    hitl_view["Success_Gain_pp"] = (hitl_view["P_Success"] - base_success) * 100
-    hitl_view["Risk_Change"] = hitl_view["Chain_Risk"] - base_risk
-    hitl_view["Decision_Utility"] = hitl_view["Success_Gain_pp"] - 25 * hitl_view["Risk_Change"]
-    best = hitl_view.sort_values(["Decision_Utility","P_Success"], ascending=False).iloc[0]
-    highest_success = hitl_view.sort_values("P_Success", ascending=False).iloc[0]
-
-    st.markdown(f"""
-    <div class="insight-grid">
-      <div class="insight-card"><div class="insight-label">Highest success outcome</div><div class="insight-value">{highest_success['Scenario']}</div><div class="insight-note">{highest_success['P_Success']*100:.2f}% precomputed P(success).</div></div>
-      <div class="insight-card"><div class="insight-label">Decision-utility leader</div><div class="insight-value">{best['Scenario']}</div><div class="insight-note">Ranks success gain jointly with chain-risk movement.</div></div>
-      <div class="insight-card"><div class="insight-label">Governance principle</div><div class="insight-value">Human override ≠ automatic improvement</div><div class="insight-note">Interventions are compared against the baseline and remain auditable.</div></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    fig = px.scatter(
-        hitl_view, x="Chain_Risk", y="P_Success", color="Scenario",
-        size=np.clip(np.abs(hitl_view["Success_Gain_pp"]) + 2, 2, None),
-        hover_name="Scenario",
-        hover_data={"Chain_Risk":":.4f","P_Success":":.4f","Success_Gain_pp":":+.2f","Risk_Change":":+.4f","Decision_Utility":":+.2f","Scenario":False},
-        title="Expert intervention decision space"
-    )
-    fig.add_vline(x=base_risk, line_width=1, line_dash="dash", line_color="#65758B")
-    fig.add_hline(y=base_success, line_width=1, line_dash="dash", line_color="#65758B")
-    fig.update_traces(marker=dict(line=dict(width=1.2, color="#E8EEF8"), sizemin=10))
-    fig.update_xaxes(range=[0,1], title="Chain risk → lower is preferable")
-    fig.update_yaxes(range=[0, max(.5, hitl_view["P_Success"].max()+.05)], title="P(success) → higher is preferable")
-    fig.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.22, xanchor="left", x=0))
-    st.plotly_chart(plotly_theme(fig, 610), width="stretch")
-    st.markdown('<div class="plot-caption">Dashed lines mark the baseline. The preferred directional quadrant is upper-left: higher success with lower chain risk. This view deliberately avoids permanent point labels; scenario details are exposed through hover to prevent annotation collisions.</div>', unsafe_allow_html=True)
-
-    st.markdown(f"""
-    <div class="signal">
-      <div class="signal-title">HITL decision brief</div>
-      <div class="signal-main">{best['Scenario']}</div>
-      <div class="signal-sub">
-      Under the prototype utility view, this intervention offers the strongest balance between success improvement and chain-risk movement.
-      Success gain versus baseline: <b>{best['Success_Gain_pp']:+.2f} pp</b> · Chain-risk change: <b>{best['Risk_Change']:+.3f}</b>.
-      This is a comparative research signal, not an autonomous execution instruction.
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    display_hitl = hitl_view[["Scenario","Chain_Risk","P_Success","Risk_Change","Success_Gain_pp","Decision_Utility"]].sort_values("Decision_Utility", ascending=False)
-    st.dataframe(
-        dataframe_dark(display_hitl, {
-            "Chain_Risk":"{:.3f}","P_Success":"{:.4f}","Risk_Change":"{:+.3f}",
-            "Success_Gain_pp":"{:+.2f}","Decision_Utility":"{:+.2f}"
-        }),
-        hide_index=True, width="stretch"
-    )
-
-# ============================================================
-# METHODOLOGY
-# ============================================================
-
-with tabs[7]:
-    st.markdown("### Methodological disclosure")
-    st.markdown("""
-    <div class="method-note">
-    <b>RYPE is a research prototype for explainable operational risk intelligence.</b><br><br>
-    The contribution is the integration of externally grounded geopolitical risk indicators, causal operational regeneration,
-    D1–D4 propagation, counterfactual intervention analysis and human-in-the-loop decision support within one coherent MVP.
-    The current dynamic route engine uses origin-node geopolitical pressure as the main external trigger; the destination port provides route context and visualization.
-    Scenario, temporal, resilience and HITL panels display precomputed research export outputs.<br><br>
-    <b>Planned extension:</b> AIS vessel position, ETA drift, speed anomaly, route deviation, ERP shipment logs and live port congestion feeds.
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("### Data and version layer")
-    st.json({
-        "geo_df": list(geo_df.shape),
-        "port_bridge_df": list(port_bridge_df.shape),
-        "port_risk_df": list(port_risk_df.shape),
-        "metadata_project": metadata.get("project"),
-        "metadata_version": metadata.get("version"),
-        "app_version": "RYPE MVP v0.3 executive UI"
-    })
+> From risk scoring to explainable, intervention-oriented decision support.
+
+**RYPE — Risk Yield Propagation Engine** is a research prototype for explainable geopolitical and operational supply-chain risk intelligence.
+
+Rather than treating supply-chain risk as a single prediction score, RYPE investigates how externally grounded risk signals can enter an operational system, propagate across interconnected decision nodes, and change under alternative interventions.
+
+The prototype integrates geopolitical risk grounding, mechanism-driven D1–D4 risk propagation, explainable risk decomposition, counterfactual scenario analysis, resilience evaluation, and human-in-the-loop decision support within a unified research interface.
+
+---
+
+## Research Motivation
+
+A high risk score alone does not answer the questions a decision-maker actually faces:
+
+- Where does the risk originate?
+- How does it propagate through the operational chain?
+- Which node concentrates the exposure?
+- What changes under an alternative route or intervention?
+- Can a human decision improve the system state?
+- Is the model explaining operational mechanisms or merely reproducing information already embedded in the data?
+
+RYPE was developed around these questions.
+
+The research process also includes a methodological investigation of data leakage and apparently near-perfect predictive performance. Instead of accepting unusually strong model results at face value, the project examines whether target-related information is structurally embedded in the feature space and distinguishes predictive performance from genuine operational realism.
+
+This methodological inquiry forms an important part of the project's research context.
+
+---
+
+## System Architecture
+
+RYPE represents operational risk through four mechanism-oriented propagation nodes:
+
+| Node | Operational interpretation |
+|---|---|
+| **D1 — Supplier** | Supplier and upstream operational exposure |
+| **D2 — Port** | Port, customs, handling, and logistics-process exposure |
+| **D3 — Route** | Transportation and route-level propagation |
+| **D4 — Last-mile** | Downstream delivery and final operational exposure |
+
+External geopolitical pressure is grounded using country-level risk indicators and connected to operational states through a route-level risk inference layer.
+
+The system then evaluates how risk propagates across D1 → D2 → D3 → D4.
+
+---
+
+## External Risk Grounding
+
+The current research layer incorporates signals derived from:
+
+- ACLED political violence and conflict indicators
+- World Bank Worldwide Governance Indicators
+- Sanctions and trade-restriction risk variables
+- UN/LOCODE port and location entities
+- Logistics, delivery, and e-commerce operational datasets
+
+These signals are used to construct an externally grounded geopolitical risk layer.
+
+The current MVP contains:
+
+- **17,517 country-month geopolitical risk observations**
+- **17,597 UN/LOCODE-based port and location entities**
+- Country-level temporal risk signals extending from **1996 to 2026**
+- A port-to-country bridge for route-level risk grounding
+
+The existence of an external geopolitical signal does not automatically imply operational realism. RYPE explicitly treats this distinction as a methodological concern:
+
+> **External Risk Realism ≠ Operational Realism**
+
+---
+
+## Core Research Components
+
+### 1. Geopolitical Risk Grounding
+
+Conflict, governance fragility, sanctions, and trade-restriction signals are integrated into an external geopolitical pressure layer.
+
+### 2. Mechanism-Driven D1–D4 Risk Propagation
+
+Risk is represented as a sequential operational mechanism rather than a single isolated score.
+
+The interface exposes supplier, port, route, and last-mile risk states to show where exposure accumulates across the chain.
+
+### 3. Explainable Risk Decomposition
+
+RYPE decomposes the active route-risk structure into interpretable contributors.
+
+The objective is not only to identify a high-risk route, but to expose the factors and propagation states associated with the resulting risk estimate.
+
+### 4. Counterfactual Intervention Analysis
+
+Alternative origin nodes can be compared against the active route.
+
+The system quantifies changes in:
+
+- geopolitical pressure
+- D1–D4 propagation states
+- edge risk
+- propagation-adjusted success probability
+
+This allows RYPE to answer a decision-oriented question:
+
+> **What changes if the operational decision changes?**
+
+### 5. Scenario Stress Laboratory
+
+Precomputed research scenarios evaluate the sensitivity of the propagation structure under:
+
+- geopolitical escalation
+- cyber escalation
+- supplier financial stress
+- port congestion shock
+- last-mile disruption
+- compound crisis conditions
+
+Risk amplification and success-probability deterioration are treated as related but distinct response dimensions.
+
+### 6. Temporal Propagation and Resilience
+
+RYPE visualizes how instability propagates across operational nodes over sequential steps.
+
+A separate resilience trajectory evaluates whether staged intervention reduces downstream exposure and improves the propagation-adjusted probability of operational success.
+
+### 7. Human-in-the-Loop Decision Support
+
+RYPE includes a Human-in-the-Loop decision layer for comparing expert intervention scenarios.
+
+Human overrides are not assumed to improve the system automatically.
+
+Instead, interventions are compared against a baseline using changes in chain risk and success probability.
+
+This supports an auditable decision-support perspective:
+
+> **Human intervention is evaluated, not automatically trusted.**
+
+---
+
+## Decision Intelligence Interface
+
+The Streamlit MVP translates the research architecture into an interactive decision-support environment.
+
+The current interface includes:
+
+- Executive Overview
+- Maritime Route Map
+- D1–D4 Propagation Intelligence
+- Counterfactual Intervention Analysis
+- Scenario Stress Laboratory
+- Temporal and Resilience Intelligence
+- Human-in-the-Loop Decision Space
+- Methodological Disclosure
+
+The interface is designed to communicate three layers simultaneously:
+
+1. **Risk state**
+2. **Risk mechanism**
+3. **Decision consequence**
+
+---
+
+## Maritime Route Visualization
+
+The current route layer visualizes estimated maritime corridors using known sea-waypoints for selected major shipping lanes.
+
+The visualization is intended as a route-context layer and **must not be interpreted as a live vessel track**.
+
+Current route paths are estimated maritime corridors.
+
+### Planned AIS Extension
+
+A future AIS integration layer may introduce:
+
+- live vessel position
+- vessel speed anomaly
+- ETA drift
+- route deviation
+- port approach behavior
+- dynamic maritime congestion signals
+
+AIS is intentionally presented as a planned extension rather than as an existing capability of the current MVP.
+
+---
+
+## Methodological Positioning
+
+RYPE does not claim novelty from the first use of machine learning, SHAP, scenario analysis, or human-in-the-loop methods individually.
+
+Its contribution lies in integrating:
+
+- a data-leakage-driven methodological inquiry
+- externally grounded geopolitical risk indicators
+- mechanism-driven D1–D4 operational risk propagation
+- explainable risk decomposition
+- counterfactual intervention analysis
+- resilience evaluation
+- human-in-the-loop decision support
+
+within a single research prototype.
+
+The central research perspective is that operational risk intelligence should move beyond predictive accuracy toward **mechanism understanding, uncertainty-aware interpretation, and intervention-oriented decision support**.
+
+---
+
+## Scope and Limitations
+
+RYPE is a **research MVP and decision-support demonstrator**.
+
+It is not currently:
+
+- a live shipment monitoring platform
+- an AIS vessel-tracking system
+- an autonomous route optimizer
+- an industrial ERP or TMS integration
+- a production-grade operational command system
+
+The dynamic route engine currently uses origin-node geopolitical pressure as the primary external trigger.
+
+The destination port provides route context and visualization.
+
+Scenario, temporal, resilience, and HITL panels use precomputed research experiment outputs.
+
+These boundaries are disclosed intentionally to preserve methodological transparency.
+
+---
+
+## Planned Research Extensions
+
+Future development directions include:
+
+- AIS vessel-position integration
+- live ETA drift and route-deviation signals
+- real-time port congestion feeds
+- ERP and shipment-event integration
+- temporal event grounding
+- observed disruption outcomes
+- uncertainty quantification
+- probabilistic calibration
+- survival-based disruption modeling
+- dynamic Bayesian risk propagation
+- advanced network-based risk diffusion
+- operational Human-in-the-Loop governance
+
+---
+
+## Technology Stack
+
+- Python
+- Streamlit
+- pandas
+- NumPy
+- Plotly
+
+Research workflow components include statistical modeling, machine learning, explainability, scenario analysis, and decision-support design.
+
+---
+
+## Repository Structure
+
+```text
+rype-risk-intelligence/
+├── app.py
+├── README.md
+├── requirements.txt
+└── data/
+    ├── real_external_geo_risk_table.csv
+    ├── real_port_country_bridge.csv
+    ├── propagation_df.csv
+    ├── scenario_df.csv
+    ├── temporal_df.csv
+    ├── resilience_df.csv
+    ├── hitl_df.csv
+    └── metadata.json
+```
+
+---
+
+## Run Locally
+
+Clone the repository and install the required dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Run the Streamlit application:
+
+```bash
+streamlit run app.py
+```
+
+---
+
+## Research Status
+
+**Current version:** RYPE MVP v0.5 — Feature Freeze Decision Intelligence Interface
+
+The current release represents a deployable research demonstrator built from the RYPE experimental workflow.
+
+The project remains under active methodological and research development.
+
+---
+
+## Author
+
+**Meriç Özcan**
+
+Statistics Student  
+Risk Modeling & Decision Science  
+Explainable AI & Quantitative Research
+
+---
+
+## Disclaimer
+
+RYPE is an academic research prototype.
+
+Outputs are intended for research, methodological demonstration, and decision-support experimentation.
+
+They should not be interpreted as autonomous operational, financial, compliance, sanctions, or maritime navigation decisions.
