@@ -1,0 +1,18 @@
+d1_supplier:
+  geo_pressure: 0.50
+  delay_normalized: 0.50
+
+d2_port:
+  d1_supplier: 0.40
+  customs_issue: 0.35
+  rerouted: 0.25
+
+d3_route:
+  d2_port: 0.45
+  rerouted: 0.35
+  geo_pressure: 0.20
+
+d4_lastmile:
+  d3_route: 0.50
+  delay_normalized: 0.30
+  damaged: 0.20

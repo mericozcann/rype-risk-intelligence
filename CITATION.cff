@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+title: "RYPE — Explainable Operational Risk Intelligence"
+message: "If you use this research prototype, please cite it as below."
+type: software
+authors:
+  - family-names: "Özcan"
+    given-names: "Meriç"
+year: 2026
+version: "0.6.0"
+repository-code: "https://github.com/mericozcann/rype-risk-intelligence"
+abstract: "A research prototype for explainable geopolitical and operational supply-chain risk intelligence."

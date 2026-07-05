@@ -1,11 +1,18 @@
 
-import json
-from math import sin, cos, radians
-import numpy as np
+from pathlib import Path
+
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+
+from src.rype.counterfactual import compare_routes_real
+from src.rype.data_loader import load_rype_data
+from src.rype.decision_signals import decision_signal, risk_label
+from src.rype.geo_risk import build_port_risk_layer, get_port_coord, ocean_route
+from src.rype.route_engine import load_yaml_config, DEFAULT_RISK_WEIGHTS, DEFAULT_PROPAGATION
+from src.rype.ui_controls import render_route_controls
+from src.rype.ui_helpers import metric_card, risk_badge, plotly_theme, dataframe_dark
 
 # ============================================================
 # RYPE MVP v0.5 — Feature Freeze Decision Intelligence Interface
@@ -173,251 +180,33 @@ footer{visibility:hidden!important;}
 """, unsafe_allow_html=True)
 
 # ============================================================
-# DATA LAYER
+# DATA + ENGINE SETUP
 # ============================================================
+
+DATA_PATH = "data"
 
 @st.cache_data
-def load_data():
-    geo_df = pd.read_csv(f"{DATA_PATH}/real_external_geo_risk_table.csv")
-    port_bridge_df = pd.read_csv(f"{DATA_PATH}/real_port_country_bridge.csv")
-    propagation_df = pd.read_csv(f"{DATA_PATH}/propagation_df.csv")
-    scenario_df = pd.read_csv(f"{DATA_PATH}/scenario_df.csv")
-    temporal_df = pd.read_csv(f"{DATA_PATH}/temporal_df.csv")
-    resilience_df = pd.read_csv(f"{DATA_PATH}/resilience_df.csv")
-    hitl_df = pd.read_csv(f"{DATA_PATH}/hitl_df.csv")
-    with open(f"{DATA_PATH}/metadata.json", "r") as f:
-        metadata = json.load(f)
-    geo_df["risk_month"] = pd.to_datetime(geo_df["risk_month"])
-    return geo_df, port_bridge_df, propagation_df, scenario_df, temporal_df, resilience_df, hitl_df, metadata
+def cached_load_rype_data(data_path: str = DATA_PATH):
+    return load_rype_data(data_path)
 
-geo_df, port_bridge_df, propagation_df, scenario_df, temporal_df, resilience_df, hitl_df, metadata = load_data()
+try:
+    geo_df, port_bridge_df, propagation_df, scenario_df, temporal_df, resilience_df, hitl_df, metadata = cached_load_rype_data(DATA_PATH)
+    port_risk_df = build_port_risk_layer(geo_df, port_bridge_df)
+except Exception as exc:
+    st.error("RYPE could not load its required data layer.")
+    st.exception(exc)
+    st.stop()
 
-ISO3_TO_ISO2 = {"AFG":"AF","ARE":"AE","CHN":"CN","EGY":"EG","NLD":"NL","SAU":"SA","SGP":"SG","YEM":"YE"}
-geo_df["country_code_iso2"] = geo_df["country_code"].map(ISO3_TO_ISO2)
-latest_geo = geo_df.sort_values("risk_month").groupby("country_code", as_index=False).tail(1)
+risk_weights = load_yaml_config(Path("config/risk_weights.yaml"), DEFAULT_RISK_WEIGHTS)
+propagation_weights = load_yaml_config(Path("config/propagation.yaml"), DEFAULT_PROPAGATION)
 
-port_risk_df = port_bridge_df.merge(
-    latest_geo,
-    left_on="country_code",
-    right_on="country_code_iso2",
-    how="inner",
-    suffixes=("_port", "_geo")
-)
-port_risk_df = port_risk_df[[
-    "port_locode", "port_name", "country_code_geo", "country_name", "risk_month",
-    "conflict_index_real", "governance_fragility_risk", "sanctions_risk",
-    "trade_restriction_risk", "geo_risk_score_real", "coordinates"
-]].rename(columns={"country_code_geo":"country_code"})
-
-# ============================================================
-# COORDINATES + MARITIME ROUTE GEOMETRY
-# ============================================================
-
-FALLBACK_COORDS = {
-    "YEADE": (12.78, 44.99), "SGSIN": (1.26, 103.82), "NLRTM": (51.92, 4.48),
-    "CNSHA": (31.23, 121.47), "SAJED": (21.49, 39.19), "EGPSD": (31.26, 32.30),
-    "SAJED": (21.49, 39.19), "EGALY": (31.20, 29.92)
-}
-
-MARITIME_WAYPOINTS = {
-    ("YEADE", "NLRTM"): [(12.78,44.99),(12.6,43.3),(18.7,39.5),(27.5,33.8),(30.5,32.3),(35.3,20.0),(37.5,10.0),(36.0,-5.5),(43.5,-9.5),(49.0,-5.5),(51.92,4.48)],
-    ("SGSIN", "NLRTM"): [(1.26,103.82),(5.5,95.0),(8.0,80.0),(12.0,60.0),(12.6,43.3),(27.5,33.8),(30.5,32.3),(35.3,20.0),(37.5,10.0),(36.0,-5.5),(43.5,-9.5),(49.0,-5.5),(51.92,4.48)],
-    ("CNSHA", "NLRTM"): [(31.23,121.47),(24.0,120.0),(12.0,110.0),(1.26,103.82),(5.5,95.0),(12.6,43.3),(27.5,33.8),(30.5,32.3),(35.3,20.0),(37.5,10.0),(36.0,-5.5),(43.5,-9.5),(49.0,-5.5),(51.92,4.48)],
-    ("SAJED", "NLRTM"): [(21.49,39.19),(22.0,38.0),(27.5,33.8),(30.5,32.3),(35.3,20.0),(37.5,10.0),(36.0,-5.5),(43.5,-9.5),(49.0,-5.5),(51.92,4.48)]
-}
-
-def parse_unlocode_coord(x):
-    if pd.isna(x):
-        return None
-    try:
-        parts = str(x).strip().split()
-        if len(parts) != 2:
-            return None
-        lat_s, lon_s = parts
-        lat = int(lat_s[:-1][:2]) + int(lat_s[:-1][2:]) / 60
-        lon = int(lon_s[:-1][:3]) + int(lon_s[:-1][3:]) / 60
-        if lat_s[-1] == "S": lat *= -1
-        if lon_s[-1] == "W": lon *= -1
-        return lat, lon
-    except Exception:
-        return None
-
-def get_port_coord(code):
-    if code in FALLBACK_COORDS:
-        return FALLBACK_COORDS[code]
-    row = port_bridge_df[port_bridge_df["port_locode"] == code]
-    if row.empty:
-        return None
-    return parse_unlocode_coord(row.iloc[0].get("coordinates"))
-
-def ocean_route(origin_code, dest_code):
-    if (origin_code, dest_code) in MARITIME_WAYPOINTS:
-        return MARITIME_WAYPOINTS[(origin_code, dest_code)]
-    start = get_port_coord(origin_code)
-    end = get_port_coord(dest_code)
-    if start is None or end is None:
-        return None
-    # Curved fallback route with a midpoint shifted toward oceanic corridor.
-    lat1, lon1 = start
-    lat2, lon2 = end
-    mid = ((lat1 + lat2) / 2 - 8, (lon1 + lon2) / 2)
-    return [start, mid, end]
-
-# ============================================================
-# RYPE ENGINE
-# ============================================================
-
-def analyze_route_real(origin_port, destination_port, random_state=42):
-    origin_rows = port_risk_df[port_risk_df["port_locode"] == origin_port]
-    destination_rows = port_bridge_df[port_bridge_df["port_locode"] == destination_port]
-    if origin_rows.empty:
-        raise ValueError(f"Origin port not found in real risk layer: {origin_port}")
-    if destination_rows.empty:
-        raise ValueError(f"Destination port not found: {destination_port}")
-
-    origin = origin_rows.iloc[0]
-    destination = destination_rows.iloc[0]
-    geo_pressure = float(np.clip(
-        0.40 * origin["conflict_index_real"] +
-        0.25 * origin["governance_fragility_risk"] +
-        0.20 * origin["sanctions_risk"] +
-        0.15 * origin["trade_restriction_risk"], 0, 1
-    ))
-    rng = np.random.default_rng(random_state)
-    delay_hours = max(1, 8 + 55 * geo_pressure + rng.normal(0, 4))
-    delay_normalized = np.clip((delay_hours - 1) / 66, 0, 1)
-    reroute_probability = np.clip(0.05 + 0.65 * geo_pressure, 0, 1)
-    rerouted = int(rng.random() < reroute_probability)
-    customs_probability = np.clip(0.03 + 0.60 * origin["trade_restriction_risk"] + 0.20 * origin["sanctions_risk"], 0, 1)
-    customs_issue = int(rng.random() < customs_probability)
-    damage_probability = np.clip(0.02 + 0.25 * origin["conflict_index_real"] + 0.15 * rerouted, 0, 1)
-    damaged = int(rng.random() < damage_probability)
-    disruption_score = 0.35 * delay_normalized + 0.25 * rerouted + 0.20 * customs_issue + 0.20 * damaged
-    disrupted = int(disruption_score > 0.45)
-
-    D1 = 0.50 * geo_pressure + 0.50 * delay_normalized
-    D2 = 0.40 * D1 + 0.35 * customs_issue + 0.25 * rerouted
-    D3 = 0.45 * D2 + 0.35 * rerouted + 0.20 * geo_pressure
-    D4 = 0.50 * D3 + 0.30 * delay_normalized + 0.20 * damaged
-    p_success = (1-D1) * (1-D2) * (1-D3) * (1-D4)
-    edge_risk_real = 0.30 * geo_pressure + 0.25 * D4 + 0.20 * disrupted + 0.15 * rerouted + 0.10 * (1 - p_success)
-
-    return {
-        "origin_port": origin_port, "origin_name": origin["port_name"], "origin_country": origin["country_name"],
-        "destination_port": destination_port, "destination_name": destination["port_name"], "destination_country_code": destination["country_code"],
-        "risk_month": origin["risk_month"], "geo_pressure": float(geo_pressure), "delay_hours": float(delay_hours),
-        "delay_normalized": float(delay_normalized), "reroute_probability": float(reroute_probability), "rerouted": int(rerouted),
-        "customs_probability": float(customs_probability), "customs_issue": int(customs_issue), "damage_probability": float(damage_probability),
-        "damaged": int(damaged), "disruption_score": float(disruption_score), "disrupted": int(disrupted),
-        "D1_supplier": float(D1), "D2_port": float(D2), "D3_route": float(D3), "D4_lastmile": float(D4),
-        "p_success": float(p_success), "edge_risk_real": float(edge_risk_real)
-    }
-
-def compare_routes_real(original_origin, destination, alternative_origin, random_state=42):
-    original = analyze_route_real(original_origin, destination, random_state)
-    alternative = analyze_route_real(alternative_origin, destination, random_state)
-    comparison = pd.DataFrame([
-        {"Scenario":"Original", "Route":f"{original_origin} → {destination}", "Geo Pressure":original["geo_pressure"], "D1 Supplier":original["D1_supplier"], "D2 Port":original["D2_port"], "D3 Route":original["D3_route"], "D4 Last-mile":original["D4_lastmile"], "P Success":original["p_success"], "Edge Risk":original["edge_risk_real"]},
-        {"Scenario":"Counterfactual", "Route":f"{alternative_origin} → {destination}", "Geo Pressure":alternative["geo_pressure"], "D1 Supplier":alternative["D1_supplier"], "D2 Port":alternative["D2_port"], "D3 Route":alternative["D3_route"], "D4 Last-mile":alternative["D4_lastmile"], "P Success":alternative["p_success"], "Edge Risk":alternative["edge_risk_real"]}
-    ])
-    return original, alternative, comparison
-
-# ============================================================
-# UI HELPERS
-# ============================================================
-
-def metric_card(label, value, note):
-    st.markdown((
-        '<div class="metric-card">'
-        f'<div class="metric-label">{label}</div>'
-        f'<div class="metric-value">{value}</div>'
-        f'<div class="metric-note">{note}</div>'
-        '</div>'
-    ), unsafe_allow_html=True)
-
-def risk_label(x):
-    if x >= 0.70: return "HIGH RISK"
-    if x >= 0.40: return "MODERATE RISK"
-    return "LOW RISK"
-
-def risk_badge(x):
-    cls = "badge-high" if x >= .70 else "badge-mod" if x >= .40 else "badge-low"
-    return f'<span class="{cls}">{risk_label(x)}</span>'
-
-def decision_signal(original, alternative):
-    risk_red = original["edge_risk_real"] - alternative["edge_risk_real"]
-    success_gain = alternative["p_success"] - original["p_success"]
-    if risk_red > 0.10 and success_gain > 0:
-        return "Evaluate counterfactual origin substitution.", "The alternative origin materially reduces propagated edge risk and improves route success probability.", risk_red, success_gain
-    if original["edge_risk_real"] >= 0.70:
-        return "Escalate shipment review before execution.", "The selected route remains exposed to high operational propagation risk under the current scenario state.", risk_red, success_gain
-    return "Proceed with monitoring.", "The selected route remains within an acceptable prototype risk band, but should still be monitored for external shocks.", risk_red, success_gain
-
-def plotly_theme(fig, height=440):
-    fig.update_layout(
-        template="plotly_dark", height=height, margin=dict(l=20,r=20,t=58,b=28),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#0f1723", font=dict(color="#d7e0ec"),
-        title_font=dict(size=18, color="#f7fbff"), legend=dict(bgcolor="rgba(0,0,0,0)")
-    )
-    fig.update_xaxes(gridcolor="rgba(255,255,255,.08)", zerolinecolor="rgba(255,255,255,.15)")
-    fig.update_yaxes(gridcolor="rgba(255,255,255,.08)", zerolinecolor="rgba(255,255,255,.15)")
-    return fig
-
-def dataframe_dark(df, fmt=None):
-    styler = df.style
-    if fmt:
-        styler = styler.format(fmt)
-    return styler
-
-# ============================================================
-# SIDEBAR
-# ============================================================
-
-st.sidebar.markdown("## ◈ RYPE Control Layer")
-st.sidebar.caption("Searchable route configuration and counterfactual design")
-
-origin_options = port_risk_df[["port_locode","port_name","country_name"]].drop_duplicates().sort_values(["country_name","port_name"])
-destination_options = port_bridge_df[["port_locode","port_name","country_code"]].drop_duplicates().sort_values(["country_code","port_name"])
-origin_codes = origin_options["port_locode"].tolist()
-destination_codes = destination_options["port_locode"].tolist()
-
-def origin_fmt(code):
-    row = origin_options[origin_options["port_locode"] == code].iloc[0]
-    return f"{code} — {row['port_name']}, {row['country_name']}"
-
-def dest_fmt(code):
-    row = destination_options[destination_options["port_locode"] == code].iloc[0]
-    return f"{code} — {row['port_name']}, {row['country_code']}"
-
-origin_port = st.sidebar.selectbox("Origin risk node", origin_codes, index=origin_codes.index("YEADE") if "YEADE" in origin_codes else 0, format_func=origin_fmt)
-destination_port = st.sidebar.selectbox("Destination port", destination_codes, index=destination_codes.index("NLRTM") if "NLRTM" in destination_codes else 0, format_func=dest_fmt)
-alternative_codes = [x for x in origin_codes if x != origin_port]
-st.sidebar.markdown("""
-<div class="sidebar-step">
-  <div class="step-no">02 Counterfactual</div>
-  <div class="step-title">Define the intervention candidate</div>
-</div>
-<div class="sidebar-mini-note">The alternative origin is compared against the active route to quantify risk reduction and success-probability gain.</div>
-""", unsafe_allow_html=True)
-
-alternative_origin = st.sidebar.selectbox("Counterfactual origin", alternative_codes, index=alternative_codes.index("SGSIN") if "SGSIN" in alternative_codes else 0, format_func=origin_fmt)
-
-with st.sidebar.expander("Advanced stochastic control", expanded=False):
-    st.markdown("""
-    **Simulation seed** fixes the random components in causal operational regeneration.
-    It makes delay, reroute, customs and damage outcomes reproducible while preserving a stochastic what-if structure.
-    """)
-    random_state = st.number_input("Simulation seed", min_value=0, max_value=9999, value=42, step=1)
-
-st.sidebar.markdown("---")
-st.sidebar.success("Tip: Click a selectbox and type a port code/name. Example: YEADE, SGSIN, Rotterdam.")
-st.sidebar.info("v0.5 keeps AIS as a planned extension; the current MVP focuses on explainable route risk propagation.")
+origin_port, destination_port, alternative_origin, random_state = render_route_controls(port_risk_df, port_bridge_df)
 
 # ============================================================
 # RUN ENGINE
 # ============================================================
 
-original, alternative, comparison_df = compare_routes_real(origin_port, destination_port, alternative_origin, int(random_state))
+original, alternative, comparison_df = compare_routes_real(origin_port, destination_port, alternative_origin, port_risk_df, port_bridge_df, int(random_state), risk_weights, propagation_weights)
 action, tone, risk_red, success_gain = decision_signal(original, alternative)
 
 # ============================================================
@@ -547,9 +336,9 @@ with tabs[0]:
 
 with tabs[1]:
     st.markdown("### Maritime route map")
-    route = ocean_route(origin_port, destination_port)
-    origin_coord = get_port_coord(origin_port)
-    dest_coord = get_port_coord(destination_port)
+    route = ocean_route(origin_port, destination_port, port_bridge_df)
+    origin_coord = get_port_coord(origin_port, port_bridge_df)
+    dest_coord = get_port_coord(destination_port, port_bridge_df)
     if route and origin_coord and dest_coord:
         route_lats = [p[0] for p in route]
         route_lons = [p[1] for p in route]
@@ -888,5 +677,5 @@ with tabs[7]:
         "port_risk_df": list(port_risk_df.shape),
         "metadata_project": metadata.get("project"),
         "metadata_version": metadata.get("version"),
-        "app_version": "RYPE MVP v0.3 executive UI"
+        "app_version": "RYPE MVP v0.6 modular architecture"
     })

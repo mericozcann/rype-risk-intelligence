@@ -2,6 +2,24 @@
 
 > From risk scoring to explainable, intervention-oriented decision support.
 
+## Repository Architecture Update — v0.6
+
+RYPE v0.6 separates the Streamlit decision interface from the analytical engine. The app remains deployable through Streamlit Cloud, while data loading, geopolitical-risk grounding, route-risk inference, counterfactual analysis, decision-signal generation and UI helpers are organized under `src/rype/`.
+
+```text
+src/rype/
+├── data_loader.py
+├── geo_risk.py
+├── route_engine.py
+├── counterfactual.py
+├── decision_signals.py
+├── ui_helpers.py
+└── ui_controls.py
+```
+
+The release also adds a mobile-accessible Route Control Center so route selection does not depend exclusively on the collapsed Streamlit sidebar on narrow screens.
+
+
 **RYPE — Risk Yield Propagation Engine** is a research prototype for explainable geopolitical and operational supply-chain risk intelligence.
 
 Rather than treating supply-chain risk as a single prediction score, RYPE investigates how externally grounded risk signals can enter an operational system, propagate across interconnected decision nodes, and change under alternative interventions.

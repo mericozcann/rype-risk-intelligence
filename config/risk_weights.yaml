@@ -1,0 +1,39 @@
+geo_pressure:
+  conflict_index_real: 0.40
+  governance_fragility_risk: 0.25
+  sanctions_risk: 0.20
+  trade_restriction_risk: 0.15
+
+operational_state:
+  delay_base_hours: 8
+  delay_geo_multiplier: 55
+  delay_noise_std: 4
+  delay_normalization_denominator: 66
+
+reroute:
+  base_probability: 0.05
+  geo_multiplier: 0.65
+
+customs:
+  base_probability: 0.03
+  trade_restriction_multiplier: 0.60
+  sanctions_multiplier: 0.20
+
+damage:
+  base_probability: 0.02
+  conflict_multiplier: 0.25
+  reroute_multiplier: 0.15
+
+disruption_score:
+  delay_normalized: 0.35
+  rerouted: 0.25
+  customs_issue: 0.20
+  damaged: 0.20
+  threshold: 0.45
+
+edge_risk:
+  geo_pressure: 0.30
+  d4_lastmile: 0.25
+  disrupted: 0.20
+  rerouted: 0.15
+  failure_probability: 0.10
