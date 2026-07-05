@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -7,13 +8,29 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from src.rype.counterfactual import compare_routes_real
-from src.rype.data_loader import load_rype_data
-from src.rype.decision_signals import decision_signal, risk_label
-from src.rype.geo_risk import build_port_risk_layer, get_port_coord, ocean_route
-from src.rype.route_engine import load_yaml_config, DEFAULT_RISK_WEIGHTS, DEFAULT_PROPAGATION
-from src.rype.ui_controls import render_route_controls
-from src.rype.ui_helpers import metric_card, risk_badge, plotly_theme, dataframe_dark
+ROOT_DIR = Path(__file__).resolve().parent
+SRC_DIR = ROOT_DIR / "src"
+
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from rype.counterfactual import compare_routes_real
+from rype.data_loader import load_rype_data
+from rype.decision_signals import decision_signal, risk_label
+from rype.geo_risk import (
+    build_port_risk_layer,
+    get_port_coord,
+    ocean_route,
+)
+from rype.route_engine import analyze_route_real
+from rype.ui_controls import render_route_controls
+from rype.ui_helpers import (
+    dataframe_dark,
+    inject_css,
+    metric_card,
+    plotly_theme,
+    risk_badge,
+)
 
 # ============================================================
 # RYPE MVP v0.5 — Feature Freeze Decision Intelligence Interface
