@@ -37,3 +37,12 @@ def dataframe_dark(df, fmt=None):
     if fmt:
         styler = styler.format(fmt)
     return styler
+def inject_css(css: str) -> None:
+    """Inject application-level CSS into the Streamlit interface."""
+    if not isinstance(css, str):
+        raise TypeError("css must be a string")
+
+    st.markdown(
+        f"<style>{css}</style>",
+        unsafe_allow_html=True,
+    )
