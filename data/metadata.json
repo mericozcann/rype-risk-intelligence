@@ -1,5 +1,5 @@
 {
-  "project": "RYPE — Risk Yield Prediction Engine",
+  "project": "RYPE — Risk Yield Propagation Engine",
   "version": "RYPE_v4_real_world_signal_grounding",
   "feature_names": [
     "DF1_Agent_Age",
